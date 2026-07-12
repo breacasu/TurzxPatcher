@@ -24,4 +24,10 @@ obj/
 
 ## Build artifacts
 *.exe
-!TurzxPatcher/bin/Release/net48/TurzxPatcher.exe
+!src/bin/Release/net48/TurzxPatcher.exe
+
+## OS junk
+Thumbs.db
+
+## Development docs (implementation plans, reverse engineering notes)
+docs/

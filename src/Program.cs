@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Diagnostics;
 using System.Linq;
+using TurzxShared.Plugins;
 
 namespace TurzxPatcher
 {
@@ -194,35 +196,39 @@ namespace TurzxPatcher
             string patchesDir = Path.Combine(turzxDir, "patches");
             if (!Directory.Exists(patchesDir))
             {
-                Console.WriteLine("Kein 'patches' Ordner gefunden (" + patchesDir + ") - keine externen Plugins geladen.");
+                Console.WriteLine("No 'patches' directory found (" + patchesDir + ") - no external plugins loaded.");
                 return;
             }
 
             var dllFiles = Directory.GetFiles(patchesDir, "*.dll");
             if (dllFiles.Length == 0)
             {
-                Console.WriteLine("'patches' Ordner ist leer - keine externen Plugins geladen.");
+                Console.WriteLine("'patches' directory is empty - no external plugins loaded.");
                 return;
             }
 
-            Console.WriteLine("Suche Plugins in: " + patchesDir + " (" + dllFiles.Length + " DLL(s) gefunden)");
+            Console.WriteLine("Searching for plugins in: " + patchesDir + " (" + dllFiles.Length + " DLL(s) found)");
+
+            const int HostInterfaceVersion = 1;
+            var applySignature = new[] { typeof(Assembly), typeof(string) };
 
             foreach (var dllPath in dllFiles)
             {
                 try
                 {
-                    Console.WriteLine("Lade Plugin-Assembly: " + Path.GetFileName(dllPath));
+                    Console.WriteLine("Loading plugin assembly: " + Path.GetFileName(dllPath));
                     var pluginAsm = Assembly.LoadFrom(dllPath);
 
                     var pluginTypes = pluginAsm.GetTypes()
-                        .Where(t => typeof(TurzxShared.Plugins.ITurzxPatch).IsAssignableFrom(t)
-                                    && !t.IsInterface
-                                    && !t.IsAbstract)
+                        .Where(t => !t.IsInterface && !t.IsAbstract)
+                        .Where(t => t.GetMethod("Apply", applySignature) != null)
+                        .Where(t => t.GetProperty("Name", typeof(string)) != null)
+                        .Where(t => t.GetProperty("InterfaceVersion", typeof(int)) != null)
                         .ToList();
 
                     if (pluginTypes.Count == 0)
                     {
-                        Console.WriteLine("  -> Keine ITurzxPatch-Implementierung in " + Path.GetFileName(dllPath) + " gefunden. Ueberspringe.");
+                        Console.WriteLine("  -> No plugin type found in " + Path.GetFileName(dllPath) + ". Skipping.");
                         continue;
                     }
 
@@ -230,23 +236,29 @@ namespace TurzxPatcher
                     {
                         try
                         {
-                            var instance = (TurzxShared.Plugins.ITurzxPatch)Activator.CreateInstance(pluginType);
-                            Console.WriteLine("  -> Wende Plugin an: " + instance.Name + " (InterfaceVersion=" + instance.InterfaceVersion + ")");
+                            var instance = Activator.CreateInstance(pluginType);
+                            var nameProp = pluginType.GetProperty("Name");
+                            var versionProp = pluginType.GetProperty("InterfaceVersion");
+                            var applyMethod = pluginType.GetMethod("Apply");
 
-                            const int HostInterfaceVersion = 1;
-                            if (instance.InterfaceVersion != HostInterfaceVersion)
+                            string pluginName = nameProp.GetValue(instance) as string ?? pluginType.Name;
+                            int pluginVersion = (int)(versionProp.GetValue(instance) ?? 0);
+
+                            Console.WriteLine("  -> Applying plugin: " + pluginName + " (InterfaceVersion=" + pluginVersion + ")");
+
+                            if (pluginVersion != HostInterfaceVersion)
                             {
-                                Console.WriteLine("  -> WARNUNG: Plugin-Interface-Version (" + instance.InterfaceVersion +
-                                                   ") weicht von Host-Version (" + HostInterfaceVersion + ") ab. " +
-                                                   "Fahre trotzdem fort, aber es koennen Inkompatibilitaeten auftreten.");
+                                Console.WriteLine("  -> WARNING: Plugin interface version (" + pluginVersion +
+                                                   ") differs from host version (" + HostInterfaceVersion + "). " +
+                                                   "Continuing anyway, but incompatibilities may occur.");
                             }
 
-                            instance.Apply(turzxAssembly, turzxDir);
-                            Console.WriteLine("  -> Plugin '" + instance.Name + "' erfolgreich angewendet.");
+                            applyMethod.Invoke(instance, new object[] { turzxAssembly, turzxDir });
+                            Console.WriteLine("  -> Plugin '" + pluginName + "' applied successfully.");
                         }
                         catch (Exception applyEx)
                         {
-                            Console.WriteLine("  -> FEHLER beim Anwenden von Plugin-Typ " + pluginType.FullName + ": " + applyEx.Message);
+                            Console.WriteLine("  -> ERROR applying plugin type " + pluginType.FullName + ": " + applyEx.Message);
                             if (applyEx.InnerException != null)
                                 Console.WriteLine("     Inner: " + applyEx.InnerException.Message);
                         }
@@ -254,7 +266,7 @@ namespace TurzxPatcher
                 }
                 catch (Exception loadEx)
                 {
-                    Console.WriteLine("FEHLER beim Laden von " + Path.GetFileName(dllPath) + ": " + loadEx.Message);
+                    Console.WriteLine("ERROR loading " + Path.GetFileName(dllPath) + ": " + loadEx.Message);
                 }
             }
         }
@@ -267,15 +279,15 @@ namespace TurzxPatcher
             var hostMutex = new System.Threading.Mutex(true, MutexName, out mutexCreated);
             if (!mutexCreated)
             {
-                Console.Error.WriteLine("Ein anderer TURZX-Host-Prozess laeuft bereits (Mutex '" + MutexName + "' ist belegt).");
-                Console.Error.WriteLine("Bitte schliesse zuerst den anderen TurzxPatcher- oder TurzxSensorLauncher-Prozess,");
-                Console.Error.WriteLine("bevor du TURZX erneut startest. Gleichzeitiges Hosten von TURZX.exe durch");
-                Console.Error.WriteLine("mehrere Loader-Prozesse ist nicht unterstuetzt und fuehrt zu USB-Konflikten.");
+                Console.Error.WriteLine("Another TURZX host process is already running (Mutex '" + MutexName + "' is held).");
+                Console.Error.WriteLine("Please close the other TurzxPatcher or TurzxSensorLauncher process first,");
+                Console.Error.WriteLine("before starting TURZX again. Hosting TURZX.exe simultaneously by");
+                Console.Error.WriteLine("multiple loader processes is not supported and leads to USB conflicts.");
                 Console.ReadLine();
                 return;
             }
-            // hostMutex bewusst NICHT disposen/releasen bis Prozessende -
-            // AppDomain-Unload/Prozessende gibt den Mutex automatisch frei.
+            // hostMutex deliberately NOT disposed/released until process end -
+            // AppDomain.Unload/process end releases the mutex automatically.
             string exePath = Path.Combine(dir, "TURZX.exe");
             if (!File.Exists(exePath))
             {
@@ -462,7 +474,7 @@ namespace TurzxPatcher
                 Console.WriteLine("Patch failed: " + ex.Message);
             }
 
-            // Plugin-Discovery: patches\*.dll nach ITurzxPatch-Implementierungen durchsuchen
+            // Plugin discovery: search patches\*.dll for ITurzxPatch implementations
             LoadAndApplyPlugins(asm, dir);
 
             try

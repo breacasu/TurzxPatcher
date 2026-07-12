@@ -1,12 +1,6 @@
-# TurzxPatcher — A088 Display Recognition Patch for TURZX
+# TurzxPatcher — Lian Li 8.8" Universal Screen (A088) Recognition Patch for TURZX
 
-> **Hinweis für Entwickler/lokale LLM:** Es gibt einen offenen Umsetzungsplan
-> zur Erweiterung dieses Projekts um ein Plugin-System, siehe
-> [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md). Das
-> Schwesterprojekt für beliebige HWiNFO-Sensoren (inkl. Aquacomputer) liegt
-> in `..\TurzxSensorBridge`.
-
-Enables recognition of the **A088 WinUSB LCD display** (e.g., Lian Li 8.8" LCD) in the **TURZX** monitor software (V4.2.1.3).
+Enables recognition of the **Lian Li 8.8" Universal Screen** (A088 WinUSB LCD) in the **TURZX** monitor software (V4.2.1.3).
 
 ## Problem
 
@@ -39,28 +33,18 @@ TURZX V4.2.1.3 does not recognize the A088 display (VID_1CBE&PID_A088) because:
 - A088 WinUSB display connected via USB
 - **L-Connect closed** (the patcher will auto-terminate L-Connect processes)
 
-## System Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| CPU | Any x64 processor | Modern multi-core |
-| RAM | 4 GB | 8 GB+ |
-| GPU | Any with x64 support | NVIDIA/AMD with latest drivers |
-| Storage | 100 MB | 500 MB+ |
-| USB | USB 2.0 | USB 3.0+ for display |
-
 ## Before You Start
 
 1. **Close L-Connect completely** (system tray icon → Exit)
 2. **Close any other display software** that might conflict
 3. **Ensure TURZX.exe is in the correct directory**
-4. **Run as Administrator** if you need HWiNFO sensor data access
+4. **Run as Administrator** — required for A088 USB firmware access and
+   LibreHardwareMonitor sensor data
 
 ## Important Notes
 
 - **Keep TURZX running** — closing it causes the display to lose firmware state and go black
 - **Do not disconnect the USB display** while TURZX is running
-- **Run as Administrator** for full sensor data access (optional but recommended)
 - **L-Connect must be closed** — the patcher will auto-terminate it, but manual closure is safer
 
 ## Usage
@@ -80,9 +64,10 @@ TURZX V4.2.1.3 does not recognize the A088 display (VID_1CBE&PID_A088) because:
 TurzxPatcher.exe --dir "C:\Full\Path\To\TURZX-Folder"
 ```
 
-### Option 3: Run as Administrator (for sensor data)
+### Option 3: Run as Administrator (for A088 firmware + sensor access)
 
-If TURZX needs access to HWiNFO sensor data, run PowerShell **as Administrator** first:
+If you need hardware sensor data (LibreHardwareMonitor requires Admin privileges),
+run PowerShell **as Administrator** first:
 
 ```
 TurzxPatcher.exe --dir "C:\Full\Path\To\TURZX-Folder"
@@ -102,17 +87,16 @@ TurzxPatcher.exe --help
 
 - Visual Studio 2022 (or newer) with .NET desktop workload
 - Or .NET SDK 4.8 targeting pack
-- Git for version control
 
 ### Steps
 
 ```
-git clone https://github.com/your-username/TurzxPatcher.git
+git clone https://github.com/breacasu/TurzxPatcher.git
 cd TurzxPatcher
-dotnet build -c Release
+dotnet build src\TurzxPatcher.csproj -c Release
 ```
 
-The output will be in `bin\Release\net48\TurzxPatcher.exe`.
+The output will be in `src\bin\Release\net48\TurzxPatcher.exe`.
 
 ### Project File
 
@@ -133,15 +117,17 @@ The project targets `net48` with `x64` platform and `UseWPF=true` (required for 
 
 ```
 TurzxPatcher/
-├── src/                    # Source code
-│   ├── Program.cs          # Main patcher logic
-│   ├── TurzxPatcher.csproj # Project file
-│   └── bin/                # Build output
-├── bin/                    # Release builds
-│   ├── TurzxPatcher.exe    # Ready-to-use patcher
-│   └── TurzxPatcher.pdb    # Debug symbols
-├── README.md               # This file
-└── .gitignore              # Git ignore rules
+├── assets/
+│   └── icons/
+│       └── icon.svg          # Source vector icon
+├── src/
+│   ├── Program.cs             # Main patcher logic
+│   ├── TurzxPatcher.csproj   # Project file
+│   ├── icon.ico               # Compiled application icon (from icon.svg)
+│   └── Plugins/
+│       └── ITurzxPatch.cs     # Plugin interface (shared with plugins)
+├── README.md                  # This file
+└── .gitignore                 # Git ignore rules
 ```
 
 ## Technical Details
@@ -275,48 +261,41 @@ This helps recover from:
 - Display losing firmware state
 - Theme switching failures
 
-## Plugin-System (für Erweiterungen wie zusätzliche Sensordaten)
+## Plugin System (for Extensions Like Additional Sensor Data)
 
-Ab Version 2.1.0 unterstützt TurzxPatcher ein einfaches Plugin-System, über das
-externe Tools zusätzliche Laufzeit-Patches auf TURZX anwenden können, ohne
-diesen Patcher selbst verändern zu müssen.
+Since version 2.1.0, TurzxPatcher supports a simple plugin system through which
+external tools can apply additional runtime patches to TURZX without
+having to modify this patcher itself.
 
-### Funktionsweise
+### How It Works
 
-1. Lege eine `.dll`-Datei, die das `TurzxShared.Plugins.ITurzxPatch`-Interface
-   implementiert, in einen Unterordner `patches\` neben `TURZX.exe`.
-2. Starte `TurzxPatcher.exe` wie gewohnt.
-3. Nach dem A088-Display-Patch, aber vor dem Start von TURZX, werden alle
-   gefundenen Plugins automatisch geladen und angewendet.
+1. Place a `.dll` file implementing the `TurzxShared.Plugins.ITurzxPatch` interface
+   into a `patches\` subfolder next to `TURZX.exe`.
+2. Run `TurzxPatcher.exe` as usual.
+3. After the A088 display patch, but before TURZX starts, all discovered
+   plugins are automatically loaded and applied.
 
-### Bekannte Plugins
+### Known Plugins
 
-- **TurzxSensorBridge** (separates Projekt): Ermöglicht die Nutzung beliebiger
-  HWiNFO-Sensoren (inkl. Aquacomputer Wassertemperatur, Durchflussrate,
-  Wasserqualität) als Datenquelle im TURZX Theme-Editor.
-  Siehe: `..\TurzxSensorBridge`
+- **TurzxSensorBridge** : Enables LibreHardwareMonitor sensors
+  (incl. Aquacomputer water temperature, flow rate, water quality) as a data source
+  in the TURZX theme editor. `SensorService.exe` is auto-started by the plugin -
+  no manual startup needed.
+  See: https://github.com/breacasu/TurzxSensorBridge
 
-### Eigene Plugins entwickeln
+### Developing Your Own Plugins
 
-Das Interface `ITurzxPatch` (Version 1) ist in `src\Plugins\ITurzxPatch.cs`
-dokumentiert. Ein Plugin ist eine .NET Framework 4.8 Class Library, die
-mindestens eine öffentliche, nicht-abstrakte Klasse enthält, die dieses
-Interface implementiert.
+The `ITurzxPatch` interface (version 1) is documented in `src\Plugins\ITurzxPatch.cs`.
+A plugin is a .NET Framework 4.8 Class Library that contains
+at least one public, non-abstract class implementing this
+interface.
 
-### Kollisionsschutz
+### Collision Protection
 
-TurzxPatcher belegt beim Start einen systemweiten Mutex (`Global\TurzxHostActive`),
-um zu verhindern, dass mehrere Host-Prozesse (z.B. TurzxPatcher UND ein anderer
-TURZX-Loader) gleichzeitig TURZX.exe laden. Ein zweiter Startversuch wird mit
-einer klaren Fehlermeldung abgelehnt.
-
-## Known Issues
-
-- **180° rotation**: Fixed in v2.0.0 — width/height values and IsPotrit flag now correctly configure portrait orientation.
-- **Background rotation**: Some themes may require background rotation adjustment. The patcher looks for background rotation properties and attempts to fix 90° offsets.
-- **Display blackouts**: If the display goes completely black when TURZX closes, the watchdog attempts automatic re-initialization.
-- **Administrator rights**: Some sensor data requires running as Administrator.
-- **Windows 11 ARM64**: Not tested. Requires x64 emulation.
+TurzxPatcher acquires a system-wide mutex (`Global\TurzxHostActive`) on startup,
+to prevent multiple host processes (e.g., TurzxPatcher AND another
+TURZX loader) from loading TURZX.exe simultaneously. A second launch attempt is
+rejected with a clear error message.
 
 ## Troubleshooting
 
@@ -368,43 +347,9 @@ einer klaren Fehlermeldung abgelehnt.
 
 MIT
 
-## Credits
-
-- **Lian Li** for the A088 display and TURZX software
-- **TURZX community** for feedback and testing
-- **Open Source contributors** for the .NET Framework and development tools
-
-## Support
-
-For issues, questions, or contributions:
-
-1. **Check the Troubleshooting section** above
-2. **Review the debug output** when starting TURZX
-3. **Create an issue** on GitHub with:
-   - TURZX version
-   - Patcher version
-   - Console output from the patcher
-   - Screenshot of the issue
-
 ## Disclaimer
 
 This tool is provided as-is for educational and experimental purposes. Use at your own risk. The developers are not responsible for any damage to your hardware or software. Always backup your TURZX.exe before using this patcher.
 
-## Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## Roadmap
-
-- [ ] Support for additional display models
-- [ ] GUI interface for easier configuration
-- [ ] Automated theme testing
-- [ ] Performance optimization
-- [ ] Multi-language support
-- [x] Plugin system for custom patches
+**Made with ❤️ by breacasu and AI**

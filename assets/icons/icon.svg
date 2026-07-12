@@ -1,0 +1,41 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#1A1A1A" rx="64"/>
+
+  <!-- 8.8" portrait display, isolated (extracted OLED concept from the
+       Aquacomputer device icon, here presented as the standalone A088 LCD).
+       Centered, fills the full canvas vertically. -->
+
+  <!-- Display chassis -->
+  <rect x="166" y="40" width="180" height="432" rx="16" fill="#0E2A4A" stroke="#007BFF" stroke-width="3"/>
+
+  <!-- Display surface (slightly inset for a screen bezel look) -->
+  <rect x="180" y="60" width="152" height="392" rx="6" fill="#0A1A2A"/>
+
+  <!-- Display content: circular gauge + 3 horizontal bars (same abstract
+       widget style as the OLED in icon-aquacomputer.svg) -->
+
+  <!-- Circular gauge at top -->
+  <circle cx="256" cy="160" r="48" fill="none" stroke="#00D4FF" stroke-width="6" opacity="0.5"/>
+  <path d="M256 112 A48 48 0 1 1 208 160" fill="none" stroke="#00D4FF" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="256" cy="160" r="6" fill="#00D4FF"/>
+
+  <!-- Three horizontal bars (sensor readouts) -->
+  <rect x="200" y="240" width="112" height="14" rx="7" fill="#00D4FF" opacity="0.35"/>
+  <rect x="200" y="240" width="84" height="14" rx="7" fill="#00D4FF"/>
+
+  <rect x="200" y="266" width="112" height="14" rx="7" fill="#FFC107" opacity="0.35"/>
+  <rect x="200" y="266" width="56" height="14" rx="7" fill="#FFC107"/>
+
+  <rect x="200" y="292" width="112" height="14" rx="7" fill="#00FF88" opacity="0.35"/>
+  <rect x="200" y="292" width="98" height="14" rx="7" fill="#00FF88"/>
+
+  <!-- Bottom circular gauge -->
+  <circle cx="256" cy="380" r="48" fill="none" stroke="#0E2A4A" stroke-width="8"/>
+  <path d="M256 332 A48 48 0 1 1 208 380" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="256" cy="380" r="8" fill="#FFFFFF"/>
+
+  <!-- USB cable coming out of the bottom of the display -->
+  <rect x="244" y="472" width="24" height="20" fill="#444444"/>
+  <path d="M256 492 L256 504" stroke="#888888" stroke-width="6"/>
+  <circle cx="256" cy="506" r="3" fill="#888888"/>
+</svg>

@@ -1,32 +1,32 @@
 // ============================================================================
 // ITurzxPatch v1
 // ============================================================================
-// Vertrag zwischen einem "Host-Loader" (z.B. TurzxPatcher.exe oder
-// TurzxSensorLauncher.exe) und externen Patch-Modulen (DLLs), die zur
-// Laufzeit zusaetzliche Reflection-Patches auf die geladene TURZX.exe
-// Assembly anwenden wollen.
+// Contract between a "Host Loader" (TurzxPatcher.exe) and external patch
+// modules (DLLs) that want to apply additional runtime reflection patches
+// to the loaded TURZX.exe assembly.
 //
-// WICHTIG - KOLLISIONSVERMEIDUNG ZWISCHEN DEN REPOS:
-// Diese Datei MUSS byte-identisch in BEIDEN Repositories vorhanden sein:
+// IMPORTANT - COLLISION AVOIDANCE BETWEEN REPOS:
+// This file MUST be byte-identical in BOTH repositories:
 //   - TurzxPatcher\src\Plugins\ITurzxPatch.cs
-//   - TurzxSensorBridge\shared\ITurzxPatch.cs   (diese Datei)
-// Grund: .NET Type-Identity basiert auf Assembly + Namespace + Typname.
-// Wird die Datei in einem der beiden Repos veraendert, OHNE die andere Kopie
-// zu aktualisieren, koennen Patch-Module aus TurzxSensorBridge nicht mehr
-// als ITurzxPatch von TurzxPatcher erkannt werden (InvalidCastException oder
-// stillschweigend "0 Patches gefunden").
+//   - TurzxSensorBridge\shared\ITurzxPatch.cs   (this file)
+// Reason: .NET type identity is based on Assembly + Namespace + TypeName.
+// If the file is modified in one repo WITHOUT updating the other copy,
+// patch modules from TurzxSensorBridge can no longer be recognized as
+// ITurzxPatch by TurzxPatcher (InvalidCastException or
+// silently "0 patches found").
 //
-// Bei einer Aenderung dieses Interfaces:
-//   1. Version-Kommentar unten erhoehen (v1 -> v2)
-//   2. Aenderung nur additiv (neue optionale Methoden mit Default-Implementierung
-//      via Extension-Methods, NICHT bestehende Signaturen aendern) ODER
-//      bewusster Breaking Change mit Versionscheck im Loader
-//   3. Kopie in BEIDEM Repos synchron aktualisieren
-//   4. In beiden READMEs auf die neue Version hinweisen
+// When changing this interface:
+//   1. Increase version comment below (v1 -> v2)
+//   2. Make changes only additively (new optional methods with default
+//      implementation via extension methods, do NOT change existing
+//      signatures) OR deliberate breaking change with version check
+//      in the loader
+//   3. Synchronously update the copy in BOTH repos
+//   4. Reference the new version in both READMEs
 //
-// Namespace ist bewusst NICHT "TurzxPatcher.*" oder "TurzxSensorBridge.*"
-// gewaehlt, sondern neutral, damit beide Repos exakt denselben Namespace
-// verwenden koennen ohne Bezug aufeinander zu nehmen.
+// Namespace is deliberately NOT "TurzxPatcher.*" or "TurzxSensorBridge.*"
+// but neutral, so both repos can use exactly the same namespace
+// without referencing each other.
 // ============================================================================
 
 using System;
@@ -35,40 +35,40 @@ using System.Reflection;
 namespace TurzxShared.Plugins
 {
     /// <summary>
-    /// Kontrakt fuer ein externes Patch-Modul, das vom Host-Loader (TurzxPatcher
-    /// oder TurzxSensorLauncher) aus dem "patches\" Unterordner geladen wird.
+    /// Contract for an external patch module that is loaded by the Host Loader
+    /// (TurzxPatcher) from the "patches\" subdirectory.
     /// Version: 1
     /// </summary>
     public interface ITurzxPatch
     {
         /// <summary>
-        /// Eindeutiger, menschenlesbarer Name des Patches fuer Konsolen-/Log-Ausgaben.
-        /// Beispiel: "Aquacomputer HWiNFO Sensor Bridge Patch"
+        /// Unique human-readable name of the patch for console/log output.
+        /// Example: "Aquacomputer LibreHardwareMonitor Sensor Bridge Patch"
         /// </summary>
         string Name { get; }
 
         /// <summary>
-        /// Minimal unterstuetzte ITurzxPatch-Interface-Version, gegen die dieses
-        /// Modul entwickelt wurde. Der Loader vergleicht dies mit seiner eigenen
-        /// HostInterfaceVersion und WARNT (bricht aber nicht ab) bei Abweichung,
-        /// damit auch bei kuenftigen Erweiterungen Abwaertskompatibilitaet moeglich ist.
+        /// Minimum supported ITurzxPatch interface version that this module was
+        /// developed against. The loader compares this with its own
+        /// HostInterfaceVersion and WARNS (does not abort) on mismatch,
+        /// to allow backward compatibility with future extensions.
         /// </summary>
         int InterfaceVersion { get; }
 
         /// <summary>
-        /// Wird genau einmal aufgerufen, NACHDEM der Host:
-        ///  - TURZX.exe per Assembly.LoadFrom geladen hat
-        ///  - den AssemblyResolve-Handler fuer UsbMonitorL registriert hat
-        ///  - den AppDomainManager/GetEntryAssembly()-Fix angewendet hat
-        ///  - Environment.CurrentDirectory auf das TURZX-Verzeichnis gesetzt hat
-        /// und BEVOR der TURZX EntryPoint aufgerufen wird.
+        /// Called exactly once, AFTER the host has:
+        ///  - Loaded TURZX.exe via Assembly.LoadFrom
+        ///  - Registered the AssemblyResolve handler for UsbMonitorL
+        ///  - Applied the AppDomainManager/GetEntryAssembly() fix
+        ///  - Set Environment.CurrentDirectory to the TURZX directory
+        /// and BEFORE the TURZX entry point is called.
         ///
-        /// Diese Methode DARF KEINE Exception nach aussen werfen. Alle Fehler
-        /// muessen intern gefangen und per Console.WriteLine protokolliert werden,
-        /// damit ein fehlerhaftes Patch-Modul nicht den gesamten Host abstuerzen laesst.
+        /// This method MUST NOT throw any Exception outward. All errors
+        /// must be caught internally and logged via Console.WriteLine,
+        /// to prevent a faulty patch module from crashing the entire host.
         /// </summary>
-        /// <param name="turzxAssembly">Die geladene TURZX.exe Assembly.</param>
-        /// <param name="turzxDir">Absoluter Pfad zum TURZX-Installationsverzeichnis.</param>
+        /// <param name="turzxAssembly">The loaded TURZX.exe assembly.</param>
+        /// <param name="turzxDir">Absolute path to the TURZX installation directory.</param>
         void Apply(Assembly turzxAssembly, string turzxDir);
     }
 }
