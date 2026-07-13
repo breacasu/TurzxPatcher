@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Diagnostics;
 using System.Linq;
+using Microsoft.Win32;
 using TurzxShared.Plugins;
 
 namespace TurzxPatcher
@@ -17,6 +18,12 @@ namespace TurzxPatcher
             {
                 string dir = args.Length > 1 ? args[1] : Directory.GetCurrentDirectory();
                 RunWorker(dir);
+                return;
+            }
+
+            if (args.Length > 0 && args[0] == "--autostart")
+            {
+                HandleAutostart(args);
                 return;
             }
 
@@ -37,8 +44,7 @@ namespace TurzxPatcher
             else
             {
                 string selfDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                string exeFile = File.Exists(Path.Combine(selfDir, "TURZX.exe")) ? "TURZX.exe" : "TURZX.exe.bak2";
-                if (File.Exists(Path.Combine(selfDir, exeFile)))
+                if (File.Exists(Path.Combine(selfDir, "TURZX.exe")))
                 {
                     turzxDir = selfDir;
                 }
@@ -90,6 +96,15 @@ namespace TurzxPatcher
             Console.WriteLine("  (place TurzxPatcher.exe next to TURZX.exe, then just double-click)");
             Console.WriteLine("    Auto-detects TURZX.exe in its own directory.");
             Console.WriteLine();
+            Console.WriteLine("  TurzxPatcher.exe --autostart on --dir \"C:\\Path\\To\\TURZX\"");
+            Console.WriteLine("    Register TurzxPatcher for Windows autostart (HKCU Run).");
+            Console.WriteLine();
+            Console.WriteLine("  TurzxPatcher.exe --autostart off");
+            Console.WriteLine("    Remove the autostart entry.");
+            Console.WriteLine();
+            Console.WriteLine("  TurzxPatcher.exe --autostart status");
+            Console.WriteLine("    Show current autostart configuration.");
+            Console.WriteLine();
             Console.WriteLine("What it does:");
             Console.WriteLine("  - Patches the A088 display template's resolution to 4801920");
             Console.WriteLine("    so the Monitor correctly assigns a theme to it.");
@@ -99,7 +114,199 @@ namespace TurzxPatcher
             Console.WriteLine("Note: Run TURZX.exe as Administrator for sensor data access.");
         }
 
-      static void TerminateLianLiProcesses()
+        const string AutoStartRunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string AutoStartValueName = "TurzxPatcher";
+        const string AppRegKey = @"Software\TurzxPatcher";
+        const string AppRegValue = "InstallDir";
+
+        static void HandleAutostart(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.Error.WriteLine("Usage: TurzxPatcher.exe --autostart <on|off|status> [--dir <path>]");
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Subcommands:");
+                Console.Error.WriteLine("  on         Register TurzxPatcher for Windows autostart");
+                Console.Error.WriteLine("  off        Remove the autostart entry");
+                Console.Error.WriteLine("  status     Show current autostart configuration");
+                return;
+            }
+
+            switch (args[1].ToLowerInvariant())
+            {
+                case "on":
+                    HandleAutostartOn(args);
+                    break;
+                case "off":
+                    HandleAutostartOff();
+                    break;
+                case "status":
+                    HandleAutostartStatus();
+                    break;
+                default:
+                    Console.Error.WriteLine("Unknown autostart command: " + args[1]);
+                    Console.Error.WriteLine("Valid commands: on, off, status");
+                    break;
+            }
+        }
+
+        static void HandleAutostartOn(string[] args)
+        {
+            string dir = null;
+
+            // Extract --dir from remaining args
+            for (int i = 2; i < args.Length - 1; i++)
+            {
+                if (args[i] == "--dir" && i + 1 < args.Length)
+                {
+                    dir = Path.GetFullPath(args[i + 1]);
+                    break;
+                }
+            }
+
+            // Fallback: saved registry path
+            if (dir == null)
+            {
+                try
+                {
+                    using (var key = Registry.CurrentUser.OpenSubKey(AppRegKey))
+                    {
+                        if (key != null)
+                            dir = key.GetValue(AppRegValue) as string;
+                    }
+                }
+                catch { }
+            }
+
+            // Fallback: auto-detect from own location
+            if (dir == null)
+            {
+                string selfDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (File.Exists(Path.Combine(selfDir, "TURZX.exe")))
+                    dir = selfDir;
+            }
+
+            if (dir == null)
+            {
+                Console.Error.WriteLine("Error: Could not determine TURZX directory.");
+                Console.Error.WriteLine("Specify it with: TurzxPatcher.exe --autostart on --dir \"C:\\Path\\To\\TURZX\"");
+                return;
+            }
+
+            SetAutostart(dir);
+        }
+
+        static void SetAutostart(string turzxDir)
+        {
+            string exePath = Path.Combine(turzxDir, "TurzxPatcher.exe");
+
+            // If the exe isn't in the TURZX dir yet, copy it
+            if (!File.Exists(exePath))
+            {
+                Console.WriteLine("TurzxPatcher.exe not found in target directory. Copying...");
+                try
+                {
+                    File.Copy(Assembly.GetExecutingAssembly().Location, exePath, true);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("Failed to copy TurzxPatcher.exe: " + ex.Message);
+                    return;
+                }
+            }
+
+            string runValue = '"' + exePath + "\" --worker \"" + turzxDir + '"';
+
+            try
+            {
+                using (var key = Registry.CurrentUser.CreateSubKey(AutoStartRunKey))
+                {
+                    key.SetValue(AutoStartValueName, runValue);
+                }
+
+                // Save the install dir for future reference
+                using (var key = Registry.CurrentUser.CreateSubKey(AppRegKey))
+                {
+                    key.SetValue(AppRegValue, turzxDir);
+                }
+
+                Console.WriteLine("Autostart enabled: " + runValue);
+                Console.WriteLine("TurzxPatcher will start with Windows for user: " + Environment.UserName);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to set autostart: " + ex.Message);
+            }
+        }
+
+        static void HandleAutostartOff()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(AutoStartRunKey, writable: true))
+                {
+                    if (key != null && key.GetValue(AutoStartValueName) != null)
+                    {
+                        key.DeleteValue(AutoStartValueName);
+                        Console.WriteLine("Autostart entry removed.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("No autostart entry found.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to remove autostart: " + ex.Message);
+            }
+        }
+
+        static void HandleAutostartStatus()
+        {
+            string runValue = null;
+            string savedDir = null;
+
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(AutoStartRunKey))
+                {
+                    if (key != null)
+                        runValue = key.GetValue(AutoStartValueName) as string;
+                }
+
+                using (var key = Registry.CurrentUser.OpenSubKey(AppRegKey))
+                {
+                    if (key != null)
+                        savedDir = key.GetValue(AppRegValue) as string;
+                }
+            }
+            catch { }
+
+            if (runValue != null)
+            {
+                Console.WriteLine("Autostart: ENABLED");
+                Console.WriteLine("  Command: " + runValue);
+
+                // Check if exe still exists
+                string exePath = runValue.Split('"').Skip(1).FirstOrDefault();
+                if (exePath != null && !File.Exists(exePath))
+                {
+                    Console.WriteLine("  WARNING: TurzxPatcher.exe not found at the configured path.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Autostart: DISABLED");
+            }
+
+            if (savedDir != null)
+            {
+                Console.WriteLine("  TURZX dir: " + savedDir);
+            }
+        }
+
+        static void TerminateLianLiProcesses()
         {
             // Terminate L-Connect processes
             string[] processNames = { "L-Connect 3", "LConnect3" };
@@ -219,6 +426,11 @@ namespace TurzxPatcher
                     Console.WriteLine("Loading plugin assembly: " + Path.GetFileName(dllPath));
                     var pluginAsm = Assembly.LoadFrom(dllPath);
 
+                    // Discover plugins by structural signature (duck-typing), NOT by
+                    // typeof(ITurzxPatch).IsAssignableFrom — the interface is compiled
+                    // into BOTH TurzxPatcher.exe and PatchModule.dll as separate
+                    // assemblies, so .NET type identity differs and IsAssignableFrom
+                    // would always return false. The shared namespace/name is enough.
                     var pluginTypes = pluginAsm.GetTypes()
                         .Where(t => !t.IsInterface && !t.IsAbstract)
                         .Where(t => t.GetMethod("Apply", applySignature) != null)
@@ -246,10 +458,10 @@ namespace TurzxPatcher
 
                             Console.WriteLine("  -> Applying plugin: " + pluginName + " (InterfaceVersion=" + pluginVersion + ")");
 
-                            if (pluginVersion != HostInterfaceVersion)
+                            if (pluginVersion > HostInterfaceVersion)
                             {
                                 Console.WriteLine("  -> WARNING: Plugin interface version (" + pluginVersion +
-                                                   ") differs from host version (" + HostInterfaceVersion + "). " +
+                                                   ") is newer than host version (" + HostInterfaceVersion + "). " +
                                                    "Continuing anyway, but incompatibilities may occur.");
                             }
 
@@ -291,13 +503,9 @@ namespace TurzxPatcher
             string exePath = Path.Combine(dir, "TURZX.exe");
             if (!File.Exists(exePath))
             {
-                exePath = Path.Combine(dir, "TURZX.exe.bak2");
-                if (!File.Exists(exePath))
-                {
-                    Console.Error.WriteLine("Error: TURZX.exe not found in " + dir);
-                    Console.ReadLine();
-                    return;
-                }
+                Console.Error.WriteLine("Error: TURZX.exe not found in " + dir);
+                Console.ReadLine();
+                return;
             }
 
             Environment.CurrentDirectory = dir;
@@ -494,9 +702,6 @@ namespace TurzxPatcher
             {
                 var watchThread = new System.Threading.Thread(() =>
                 {
-                    int bootCount = 0;
-                    bool inBootState = false;
-                    DateTime lastBootTime = DateTime.MinValue;
                     bool displayActive = false;
                     DateTime lastDisplayUpdate = DateTime.MinValue;
 

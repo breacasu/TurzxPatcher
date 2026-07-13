@@ -81,6 +81,48 @@ Or place the EXE in the TURZX folder and run as Administrator.
 TurzxPatcher.exe --help
 ```
 
+### Autostart with Windows
+
+TurzxPatcher can register itself to launch automatically when you log in to Windows, so the A088 display patch (and any plugins, like TurzxSensorBridge) are active without manual interaction.
+
+#### Via Installer (recommended)
+
+The combined installer (`TurzxPatcherSetup-*.exe`, built from `installer/`) includes a checkbox on the "Additional shortcuts" page:
+
+> **Start TurzxPatcher automatically with Windows**
+
+When checked, the installer creates a `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry pointing to the Worker process. The entry is automatically removed on uninstall.
+
+#### Via Command Line
+
+```
+TurzxPatcher.exe --autostart on --dir "C:\Path\To\TURZX"
+```
+
+Registers TurzxPatcher for Windows autostart. The `--dir` path is optional if TurzxPatcher.exe is already next to `TURZX.exe` (auto-detected) or was previously configured. The TURZX directory is saved in the registry for future reference.
+
+```
+TurzxPatcher.exe --autostart off
+```
+
+Removes the autostart entry.
+
+```
+TurzxPatcher.exe --autostart status
+```
+
+Shows whether autostart is enabled, the registered command, and whether the EXE still exists at the configured path.
+
+#### How It Works
+
+The autostart entry launches the Worker process directly:
+
+```
+"C:\Path\To\TURZX\TurzxPatcher.exe" --worker "C:\Path\To\TURZX"
+```
+
+This skips the launcher's L-Connect termination step (L-Connect should not be running at login time anyway). The Worker loads TURZX, applies all patches and plugins, and starts the display.
+
 ## Building from Source
 
 ### Prerequisites
@@ -121,11 +163,17 @@ TurzxPatcher/
 │   └── icons/
 │       └── icon.svg          # Source vector icon
 ├── src/
-│   ├── Program.cs             # Main patcher logic
+│   ├── Program.cs             # Main patcher logic + autostart CLI
 │   ├── TurzxPatcher.csproj   # Project file
 │   ├── icon.ico               # Compiled application icon (from icon.svg)
 │   └── Plugins/
 │       └── ITurzxPatch.cs     # Plugin interface (shared with plugins)
+├── installer/
+│   ├── TurzxPatcher.iss      # Inno Setup script (combined TurzxPatcher + TurzxSensorBridge)
+│   └── build.ps1             # Build + stage + compile pipeline
+├── .github/
+│   ├── workflows/release.yml  # GitHub Actions release workflow
+│   └── FUNDING.yml           # Buy Me a Coffee
 ├── README.md                  # This file
 └── .gitignore                 # Git ignore rules
 ```
@@ -325,7 +373,13 @@ rejected with a clear error message.
 
 ## Version History
 
-### v2.1.0 (Current)
+### v2.2.0 (Current)
+- Added Windows autostart support (`--autostart on|off|status` CLI commands)
+- Added autostart checkbox to the combined installer (Inno Setup)
+- Plugin discovery now uses `ITurzxPatch` interface check instead of structural duck-typing
+- InterfaceVersion mismatch warning now only fires when plugin is newer than host
+
+### v2.1.0
 - Added plugin system (`ITurzxPatch` interface + `patches\` folder discovery)
 - Added `Global\TurzxHostActive` mutex for multi-loader collision protection
 

@@ -19,7 +19,7 @@
 
 [Setup]
 AppName=TurzxPatcher + TurzxSensorBridge
-AppVersion=2.1.0
+AppVersion=2.2.0
 AppPublisher=breacasu
 AppPublisherURL=https://github.com/breacasu
 AppSupportURL=https://github.com/breacasu/TurzxPatcher/issues
@@ -55,6 +55,7 @@ Name: "sensorbridge"; Description: "TurzxSensorBridge (custom hardware sensors f
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut for TurzxPatcher"; GroupDescription: "Additional shortcuts:"
 Name: "startmenu";   Description: "Create a &Start Menu shortcut for SensorConfig"; GroupDescription: "Additional shortcuts:"
+Name: "autostart";   Description: "Start TurzxPatcher &automatically with Windows"; GroupDescription: "Additional shortcuts:"
 
 [Files]
 ; --- TurzxPatcher (always installed, goes into TURZX dir) ---
@@ -205,4 +206,30 @@ begin
   Result := MemoTypeInfo + MemoComponentsInfo + NewLine +
             'TURZX directory:' + Space + GetTurzxDir('') + NewLine + NewLine +
             MemoGroupInfo + MemoTasksInfo;
+end;
+
+// ---------------------------------------------------------------------------
+// Autostart (HKCU Run) management
+// ---------------------------------------------------------------------------
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  runValue: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    if WizardIsTaskSelected('autostart') then
+    begin
+      runValue := '"' + GetTurzxDir('') + '\TurzxPatcher.exe" --worker "' + GetTurzxDir('') + '"';
+      RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'TurzxPatcher', runValue);
+    end;
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'TurzxPatcher');
+    RegDeleteKeyIfEmpty(HKCU, 'Software\TurzxPatcher');
+  end;
 end;
