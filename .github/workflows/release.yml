@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout TurzxPatcher
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
+            $version = $matches[1]
+          } else {
+            $version = '0.0.0-dev'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version"
+
+      - name: Build TurzxPatcher
+        run: dotnet build src\TurzxPatcher.csproj -c Release
+
+      - name: Package TurzxPatcher
+        shell: pwsh
+        run: |
+          $staging = "staging"
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item "src\bin\Release\net48\TurzxPatcher.exe" $staging
+          Copy-Item "src\bin\Release\net48\TurzxPatcher.exe.config" $staging -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$staging\*" -DestinationPath "TurzxPatcher-${{ steps.version.outputs.version }}.zip"
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $artifact = "TurzxPatcher-$version.zip"
+
+          $releaseArgs = @(
+            'release', 'create', "v$version",
+            $artifact,
+            '--title', "v$version",
+            '--notes', "## TurzxPatcher v$version`n`nStandalone release — contains TurzxPatcher.exe only.`n`nFor sensor support (Aquacomputer etc.), also install [TurzxSensorBridge](https://github.com/breacasu/TurzxSensorBridge/releases).`n`n### Requirements`n- Windows x64`n- .NET Framework 4.8`n- TURZX V4.2.1.3 or later`n- Administrator privileges",
+            '--verify-tag'
+          )
+          & gh @releaseArgs
