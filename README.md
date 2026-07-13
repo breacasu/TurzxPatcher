@@ -349,7 +349,8 @@ MIT
 
 ## Disclaimer
 
-This tool is provided as-is for educational and experimental purposes. Use at your own risk. The developers are not responsible for any damage to your hardware or software. Always backup your TURZX.exe before using this patcher.
+This tool is provided as-is for educational and experimental purposes. Use at your own risk. The developer is not responsible for any damage to your hardware or software. Always backup your TURZX.exe before using this patcher.
 
+---
 
 **Made with ❤️ by breacasu and AI**

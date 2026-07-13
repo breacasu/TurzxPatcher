@@ -31,3 +31,7 @@ Thumbs.db
 
 ## Development docs (implementation plans, reverse engineering notes)
 docs/
+
+## Installer build artifacts
+installer/build/
+installer/output/
